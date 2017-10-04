@@ -209,6 +209,19 @@ def edit_article(id):
 	return render_template('edit_article.html', form=form)
 
 
+# Delete Article
+@app.route('/delete_article/<string:id>', methods=['POST'])
+@is_logged_in
+def delete_article(id):
+    cur = mysql.connection.cursor()
+    cur.execute("DELETE FROM articles WHERE id = %s", [id])
+    mysql.connection.commit()
+    cur.close()
+
+    flash('Article successfully deleted', 'success')
+    return redirect(url_for('dashboard'))
+
+
 if __name__ == '__main__':
 	app.secret_key = 'secretkey'
 	app.run(debug=True)
