@@ -1,12 +1,10 @@
 from flask import Flask, render_template, flash, redirect, url_for, session, logging, request
-from data import Articles
 from flask_mysqldb import MySQL
 from wtforms import Form, StringField, TextAreaField, PasswordField, validators
 from passlib.hash import sha256_crypt
 from functools import wraps
 
 app = Flask(__name__)
-art_obj = Articles()
 
 #configuring sql settings
 from sql_config import configure
@@ -24,11 +22,28 @@ def about():
 
 @app.route('/articles')
 def articles():
-	return render_template('articles.html', articles = art_obj)
+	# Displaying articles
+	cur = mysql.connection.cursor()
+	result = cur.execute('select * from articles')
+	articles = cur.fetchall()
+
+	if result > 0:
+		return render_template('articles.html', articles = articles)
+	else:
+		msg = "No articles found!"
+		return render_template('articles.html', msg = msg)
+
+	cur.close()
+
 
 @app.route('/article/<string:id>/')
 def article(id):
-	return render_template('article.html', id = id)
+	# Selecting specific article
+	cur = mysql.connection.cursor()
+	result = cur.execute('select * from articles where id = %s', [id])
+	article = cur.fetchone()
+
+	return render_template('article.html', article = article)
 
 
 
@@ -116,14 +131,50 @@ def is_logged_in(f):
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
-	return render_template('dashboard.html')
+	# Displaying articles
+	cur = mysql.connection.cursor()
+	result = cur.execute('select * from articles')
+	articles = cur.fetchall()
+
+	if result > 0:
+		return render_template('dashboard.html', articles = articles)
+	else:
+		msg = "No articles found!"
+		return render_template('dashboard.html', msg = msg)
+
+	cur.close()
 
 @app.route('/logout')
+@is_logged_in
 def logout():
 	session.clear()
 	flash('Successfully logged out.','success')
 	return redirect(url_for('login'))
 
+
+#ARTICLES
+class ArticleForm(Form):
+	title = StringField('Title', [validators.Length(min=1, max=200)])
+	body = TextAreaField('Content', [validators.Length(min=30)])
+
+#Add article
+@app.route('/add_article', methods = ['GET', 'POST'])
+@is_logged_in
+def add_article():
+	form = ArticleForm(request.form)
+	if request.method == 'POST' and form.validate():
+		title = form.title.data
+		body = form.body.data
+
+		#create cursor
+		cur = mysql.connection.cursor()
+		result = cur.execute('insert into articles(title, body, author) values (%s, %s, %s)', (title, body, session['username']))
+		mysql.connection.commit()
+		cur.close()
+		flash('Artcle successfully created', 'success')
+		return redirect(url_for('dashboard'))
+
+	return render_template('add_article.html', form=form)
 
 
 if __name__ == '__main__':
